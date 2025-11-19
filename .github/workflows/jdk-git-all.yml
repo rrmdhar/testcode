@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       versions:
-        description: "Comma-separated Oracle JDK versions (e.g., 8u411,11.0.24,17.0.12,21.0.7,25.0.1)"
+        description: "Comma-separated Oracle JDK versions (e.g., 8u471,11.0.29,17.0.17,21.0.9,25.0.1)"
         required: true
         default: "8u471,11.0.29,17.0.17,21.0.9,25.0.1"
 
