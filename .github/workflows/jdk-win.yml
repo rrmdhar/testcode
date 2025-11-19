@@ -1,0 +1,27 @@
+name: Download Oracle JDK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-jdk:
+    runs-on: windows-latest
+    steps:
+      - name: Set up PowerShell
+        shell: pwsh
+        run: |
+          Write-Host "Preparing to download Oracle JDK 21.0.7 (Windows x64)"
+
+      - name: Download Oracle JDK 21.0.7 (Windows x64)
+        shell: pwsh
+        run: |
+          $jdkUrl = "https://download.oracle.com/java/21/archive/jdk-21.0.7_windows-x64_bin.zip"
+          $output = "jdk-21.0.7-windows-x64.zip"
+          Invoke-WebRequest -Uri $jdkUrl -OutFile $output
+          Write-Host "Downloaded: $output"
+
+      - name: Extract JDK
+        shell: pwsh
+        run: |
+          Expand-Archive -Path "jdk-21.0.7-windows-x64.zip" -DestinationPath "C:\Temp\jdk"
+          Write-Host "JDK extracted to ./jdk"
