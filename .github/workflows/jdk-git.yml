@@ -1,39 +1,75 @@
-name: Download and Commit Oracle JDK 21.0.7 (Windows x64)
+name: Download and Commit Oracle JDKs (8, 11, 17, 21)
 
 on:
   workflow_dispatch:
+    inputs:
+      versions:
+        description: "Comma-separated Oracle JDK versions to download (8,11,17,21)"
+        required: false
+        default: "8,11,17,21"
 
 jobs:
   download-and-commit:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write   # REQUIRED for pushing to the repo
+      contents: write
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # required so we can commit back
+          fetch-depth: 0
 
-      - name: Download Oracle JDK 21.0.7 for Windows x64
+      - name: Parse versions
+        id: parse
         run: |
-          JDK_URL="https://download.oracle.com/otn-pub/java/jdk/21.0.7+7/2e923413a8bb42a4b77fa1f21dcb40f2/jdk-21.0.7_windows-x64_bin.zip"
+          versions=$(echo "${{ github.event.inputs.versions }}" | tr ',' ' ')
+          echo "versions=$versions" >> $GITHUB_OUTPUT
 
-          echo "Downloading Oracle JDK..."
-          curl -L -b "oraclelicense=accept-securebackup-cookie" \
-               -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-               -o jdk-21.0.7_windows-x64.zip \
-               "$JDK_URL"
-
-      - name: Commit ZIP into repo
+      - name: Download Oracle JDKs
         run: |
-          mkdir -p jdk
-          mv jdk-21.0.7_windows-x64.zip jdk/
+          for ver in ${{ steps.parse.outputs.versions }}; do
+            echo "Processing Oracle JDK $ver ..."
 
+            case $ver in
+              8)
+                JDK_URL="https://download.oracle.com/otn-pub/java/jdk/8u411-b09/jdk-8u411-windows-x64.zip"
+                FILENAME="jdk-8u411-windows-x64.zip"
+                ;;
+              11)
+                JDK_URL="https://download.oracle.com/otn-pub/java/jdk/11.0.24+8/aa18e27f67aa4db3af51d119dadd2f96/jdk-11.0.24_windows-x64_bin.zip"
+                FILENAME="jdk-11.0.24-windows-x64.zip"
+                ;;
+              17)
+                JDK_URL="https://download.oracle.com/otn-pub/java/jdk/17.0.12+7/2264dfa7eac74756a8b9ce477db47955/jdk-17.0.12_windows-x64_bin.zip"
+                FILENAME="jdk-17.0.12-windows-x64.zip"
+                ;;
+              21)
+                JDK_URL="https://download.oracle.com/otn-pub/java/jdk/21.0.7+7/2e923413a8bb42a4b77fa1f21dcb40f2/jdk-21.0.7_windows-x64_bin.zip"
+                FILENAME="jdk-21.0.7-windows-x64.zip"
+                ;;
+              *)
+                echo "Unsupported JDK version: $ver"
+                exit 1
+                ;;
+            esac
+
+            echo "Downloading $FILENAME ..."
+            curl -L -b "oraclelicense=accept-securebackup-cookie" \
+                 -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+                 -o "$FILENAME" \
+                 "$JDK_URL"
+
+            mkdir -p "jdk/$ver"
+            mv "$FILENAME" "jdk/$ver/"
+          done
+
+      - name: Commit JDKs into repo
+        run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add jdk/jdk-21.0.7_windows-x64.zip
-          git commit -m "Add Oracle JDK 21.0.7 Windows x64 ZIP"
+          git add jdk/
+          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }}"
           git push
