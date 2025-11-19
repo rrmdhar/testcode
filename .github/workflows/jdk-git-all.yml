@@ -1,12 +1,12 @@
-name: Download and Commit Oracle JDKs (Windows EXE/MSI + ZIP, Linux, macOS)
+name: Download and Commit Oracle JDKs (x64 / x86-64)
 
 on:
   workflow_dispatch:
     inputs:
       versions:
-        description: "Comma-separated Oracle JDK versions (e.g., 8u471,11.0.29,17.0.17,21.0.9,25.0.1)"
+        description: "Comma-separated Oracle JDK versions (e.g., 8u411,11.0.24,17.0.12,21.0.7,25.0.1)"
         required: true
-        default: "8u471,11.0.29,17.0.17,21.0.9,25.0.1"
+        default: "8u411,11.0.24,17.0.12,21.0.7,25.0.1"
 
 jobs:
   download-and-commit:
@@ -26,55 +26,36 @@ jobs:
           versions=$(echo "${{ github.event.inputs.versions }}" | tr ',' ' ')
           echo "versions=$versions" >> $GITHUB_OUTPUT
 
-      - name: Download Oracle JDKs (Windows EXE/MSI/ZIP, Linux, macOS)
+      - name: Download Oracle JDK files (x64 / x86-64)
         run: |
           for ver in ${{ steps.parse.outputs.versions }}; do
             echo "Processing Oracle JDK $ver ..."
 
-            mkdir -p jdk/$ver/windows jdk/$ver/linux jdk/$ver/macos
+            base_url="https://download.oracle.com/otn-pub/java/jdk/${ver}/"
 
-            # OS map (Linux and macOS keep original extensions)
-            declare -A os_map=( ["linux"]="tar.gz" ["macos"]="dmg" )
+            echo "Fetching file list from $base_url ..."
+            html=$(curl -s -b "oraclelicense=accept-securebackup-cookie" -H "Cookie: oraclelicense=accept-securebackup-cookie" "$base_url")
 
-            # Windows extensions (multiple: zip, exe, msi)
-            windows_exts=("zip" "exe" "msi")
+            # Extract all files containing x64 or x86-64
+            files=$(echo "$html" | grep -Eo 'href="jdk-[^"]*(x64|x86-64)[^"]+\.(zip|exe|msi|tar\.gz|dmg)"' | sed 's/href="//' | sed 's/"//')
 
-            # Windows downloads
-            for ext in "${windows_exts[@]}"; do
-              # Construct URL
-              if [[ "$ver" == 8u* ]]; then
-                build="b09"
-                filename="jdk-${ver}-windows-x64_bin.${ext}"
-                url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-windows-x64_bin.${ext}"
+            for file in $files; do
+              # Detect OS from filename
+              if [[ $file == *windows* ]]; then
+                os="windows"
+              elif [[ $file == *linux* ]]; then
+                os="linux"
+              elif [[ $file == *macos* ]]; then
+                os="macos"
               else
-                build="latest"
-                filename="jdk-${ver}-windows-x64_bin.${ext}"
-                url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}-windows-x64_bin.${ext}"
+                os="other"
               fi
 
-              echo "Downloading Windows $ext: $filename from $url ..."
+              echo "Downloading $file ..."
+              mkdir -p "jdk/$ver/$os"
               curl -L -b "oraclelicense=accept-securebackup-cookie" \
                    -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                   -o "jdk/$ver/windows/$filename" "$url"
-            done
-
-            # Linux and macOS downloads
-            for os in "${!os_map[@]}"; do
-              ext="${os_map[$os]}"
-              if [[ "$ver" == 8u* ]]; then
-                build="b09"
-                filename="jdk-${ver}-${os}-x64_bin.${ext}"
-                url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-${os}-x64_bin.${ext}"
-              else
-                build="latest"
-                filename="jdk-${ver}_${os}-x64_bin.${ext}"
-                url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}_${os}-x64_bin.${ext}"
-              fi
-
-              echo "Downloading $os: $filename from $url ..."
-              curl -L -b "oraclelicense=accept-securebackup-cookie" \
-                   -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                   -o "jdk/$ver/$os/$filename" "$url"
+                   -o "jdk/$ver/$os/$file" "$base_url/$file"
             done
           done
 
@@ -83,5 +64,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add jdk/
-          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (Windows EXE/MSI/ZIP, Linux, macOS)"
+          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (x64 / x86-64, all OS files)"
           git push
