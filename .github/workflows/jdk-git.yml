@@ -1,15 +1,20 @@
-name: Download Oracle JDK 21.0.7 (Windows x64)
+name: Download and Commit Oracle JDK 21.0.7 (Windows x64)
 
 on:
   workflow_dispatch:
 
 jobs:
-  download-jdk:
+  download-and-commit:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # REQUIRED for pushing to the repo
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # required so we can commit back
 
       - name: Download Oracle JDK 21.0.7 for Windows x64
         run: |
@@ -18,12 +23,17 @@ jobs:
           echo "Downloading Oracle JDK..."
           curl -L -b "oraclelicense=accept-securebackup-cookie" \
                -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-               -o jdk-21.0.7-windows-x64.zip \
+               -o jdk-21.0.7_windows-x64.zip \
                "$JDK_URL"
 
-      - name: Upload ZIP as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: jdk-21.0.7-windows-x64
-          path: jdk-21.0.7-windows-x64.zip
-          retention-days: 30
+      - name: Commit ZIP into repo
+        run: |
+          mkdir -p jdk
+          mv jdk-21.0.7_windows-x64.zip jdk/
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add jdk/jdk-21.0.7_windows-x64.zip
+          git commit -m "Add Oracle JDK 21.0.7 Windows x64 ZIP"
+          git push
