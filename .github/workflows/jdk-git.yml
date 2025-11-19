@@ -1,12 +1,12 @@
-name: Download and Commit Oracle JDKs (Win, Linux, macOS)
+name: Download and Commit Oracle JDKs (Dynamic Versions)
 
 on:
   workflow_dispatch:
     inputs:
       versions:
-        description: "Comma-separated Oracle JDK versions to download (8,11,17,21)"
-        required: false
-        default: "8,11,17,21"
+        description: "Comma-separated exact Oracle JDK version strings (e.g. 8u411-b09,11.0.24+8,17.0.12+7,21.0.7+7)"
+        required: true
+        default: "8u411-b09,11.0.24+8,17.0.12+7,21.0.7+7"
 
 jobs:
   download-and-commit:
@@ -32,53 +32,40 @@ jobs:
           for ver in ${{ steps.parse.outputs.versions }}; do
             echo "Processing Oracle JDK $ver ..."
 
-            case $ver in
-              8)
-                WIN_URL="https://download.oracle.com/otn-pub/java/jdk/8u411-b09/jdk-8u411-windows-x64.zip"
-                LINUX_URL="https://download.oracle.com/otn-pub/java/jdk/8u411-b09/jdk-8u411-linux-x64.tar.gz"
-                MAC_URL="https://download.oracle.com/otn-pub/java/jdk/8u411-b09/jdk-8u411-macosx-x64.dmg"
-                ;;
+            # Determine major version for folder structure
+            if [[ "$ver" == 8* ]]; then
+              major=8
+            elif [[ "$ver" == 11* ]]; then
+              major=11
+            elif [[ "$ver" == 17* ]]; then
+              major=17
+            elif [[ "$ver" == 21* ]]; then
+              major=21
+            else
+              echo "Unsupported major JDK version in $ver"
+              exit 1
+            fi
 
-              11)
-                WIN_URL="https://download.oracle.com/otn-pub/java/jdk/11.0.24+8/aa18e27f67aa4db3af51d119dadd2f96/jdk-11.0.24_windows-x64_bin.zip"
-                LINUX_URL="https://download.oracle.com/otn-pub/java/jdk/11.0.24+8/aa18e27f67aa4db3af51d119dadd2f96/jdk-11.0.24_linux-x64_bin.tar.gz"
-                MAC_URL="https://download.oracle.com/otn-pub/java/jdk/11.0.24+8/aa18e27f67aa4db3af51d119dadd2f96/jdk-11.0.24_macos-x64_bin.dmg"
-                ;;
+            # Construct dynamic download URLs
+            WIN_URL="https://download.oracle.com/otn-pub/java/jdk/${ver}/jdk-${ver}_windows-x64_bin.zip"
+            LINUX_URL="https://download.oracle.com/otn-pub/java/jdk/${ver}/jdk-${ver}_linux-x64_bin.tar.gz"
+            MAC_URL="https://download.oracle.com/otn-pub/java/jdk/${ver}/jdk-${ver}_macos-x64_bin.dmg"
 
-              17)
-                WIN_URL="https://download.oracle.com/otn-pub/java/jdk/17.0.12+7/2264dfa7eac74756a8b9ce477db47955/jdk-17.0.12_windows-x64_bin.zip"
-                LINUX_URL="https://download.oracle.com/otn-pub/java/jdk/17.0.12+7/2264dfa7eac74756a8b9ce477db47955/jdk-17.0.12_linux-x64_bin.tar.gz"
-                MAC_URL="https://download.oracle.com/otn-pub/java/jdk/17.0.12+7/2264dfa7eac74756a8b9ce477db47955/jdk-17.0.12_macos-x64_bin.dmg"
-                ;;
+            echo "Downloading $ver for Windows, Linux, macOS..."
 
-              21)
-                WIN_URL="https://download.oracle.com/otn-pub/java/jdk/21.0.7+7/2e923413a8bb42a4b77fa1f21dcb40f2/jdk-21.0.7_windows-x64_bin.zip"
-                LINUX_URL="https://download.oracle.com/otn-pub/java/jdk/21.0.7+7/2e923413a8bb42a4b77fa1f21dcb40f2/jdk-21.0.7_linux-x64_bin.tar.gz"
-                MAC_URL="https://download.oracle.com/otn-pub/java/jdk/21.0.7+7/2e923413a8bb42a4b77fa1f21dcb40f2/jdk-21.0.7_macos-x64_bin.dmg"
-                ;;
-
-              *)
-                echo "Unsupported JDK version: $ver"
-                exit 1
-                ;;
-            esac
-
-            # Download all platforms
-            echo "Downloading Oracle JDK $ver for Windows, Linux, macOS..."
-
-            mkdir -p jdk/$ver/windows jdk/$ver/linux jdk/$ver/macos
+            mkdir -p "jdk/$major/windows" "jdk/$major/linux" "jdk/$major/macos"
 
             curl -L -b "oraclelicense=accept-securebackup-cookie" \
                  -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                 -o "jdk/$ver/windows/${WIN_URL##*/}" "$WIN_URL"
+                 -o "jdk/$major/windows/jdk-${ver}_windows-x64_bin.zip" "$WIN_URL"
 
             curl -L -b "oraclelicense=accept-securebackup-cookie" \
                  -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                 -o "jdk/$ver/linux/${LINUX_URL##*/}" "$LINUX_URL"
+                 -o "jdk/$major/linux/jdk-${ver}_linux-x64_bin.tar.gz" "$LINUX_URL"
 
             curl -L -b "oraclelicense=accept-securebackup-cookie" \
                  -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                 -o "jdk/$ver/macos/${MAC_URL##*/}" "$MAC_URL"
+                 -o "jdk/$major/macos/jdk-${ver}_macos-x64_bin.dmg" "$MAC_URL"
 
           done
 
