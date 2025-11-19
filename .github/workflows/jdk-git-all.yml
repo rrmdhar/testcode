@@ -67,6 +67,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add jdk/
+          git add /jdk
           git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (x86-64 only)"
           git push
