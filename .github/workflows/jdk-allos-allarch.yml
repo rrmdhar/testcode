@@ -1,0 +1,119 @@
+name: Download and Commit Oracle JDKs (Windows EXE/MSI/ZIP + x86-64, Linux + x86-64, macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Comma-separated Oracle JDK versions (e.g., 8u471,11.0.29,17.0.17,21.0.9,25.0.1)"
+        required: true
+        default: "8u471,11.0.29,17.0.17,21.0.9,25.0.1"
+
+jobs:
+  download-and-commit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse versions
+        id: parse
+        run: |
+          IFS=',' read -r -a versions_array <<< "${{ github.event.inputs.versions }}"
+          echo "versions=${versions_array[*]}" >> $GITHUB_OUTPUT
+
+      - name: Download Oracle JDKs
+        run: |
+          declare -A os_map=( ["linux"]="tar.gz" ["macos"]="dmg" )
+          windows_exts=("zip" "exe" "msi")
+          windows_archs=("x64" "x86_64")
+          linux_archs=("x64" "x86_64")
+
+          for ver in ${{ steps.parse.outputs.versions }}; do
+            echo "Processing JDK $ver ..."
+            mkdir -p jdk/$ver/windows jdk/$ver/linux jdk/$ver/macos
+
+            # Determine build number / URL pattern
+            if [[ "$ver" == 8u* ]]; then
+              build="b09"
+            else
+              build="latest"
+            fi
+
+            # ---------------- Windows ----------------
+            for arch in "${windows_archs[@]}"; do
+              for ext in "${windows_exts[@]}"; do
+                filename="jdk-${ver}-windows-${arch}_bin.${ext}"
+                if [[ "$ver" == 8u* ]]; then
+                  url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-windows-${arch}_bin.${ext}"
+                else
+                  url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}-windows-${arch}_bin.${ext}"
+                fi
+
+                target="jdk/$ver/windows/$filename"
+                if [[ ! -f "$target" ]]; then
+                  echo "Downloading Windows $arch $ext: $filename ..."
+                  curl -L --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
+                       -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+                       -o "$target" "$url" || echo "Warning: $filename may not exist"
+                else
+                  echo "$filename already exists, skipping."
+                fi
+              done
+            done
+
+            # ---------------- Linux ----------------
+            for arch in "${linux_archs[@]}"; do
+              ext="${os_map[linux]}"
+              if [[ "$ver" == 8u* ]]; then
+                filename="jdk-${ver}-linux-${arch}_bin.${ext}"
+                url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-linux-${arch}_bin.${ext}"
+              else
+                filename="jdk-${ver}_linux-${arch}_bin.${ext}"
+                url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}_linux-${arch}_bin.${ext}"
+              fi
+
+              target="jdk/$ver/linux/$filename"
+              if [[ ! -f "$target" ]]; then
+                echo "Downloading Linux $arch: $filename ..."
+                curl -L --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
+                     -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+                     -o "$target" "$url" || echo "Warning: $filename may not exist"
+              else
+                echo "$filename already exists, skipping."
+              fi
+            done
+
+            # ---------------- macOS (x64 only) ----------------
+            ext="${os_map[macos]}"
+            if [[ "$ver" == 8u* ]]; then
+              filename="jdk-${ver}-macos-x64_bin.${ext}"
+              url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-macos-x64_bin.${ext}"
+            else
+              filename="jdk-${ver}_macos-x64_bin.${ext}"
+              url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}_macos-x64_bin.${ext}"
+            fi
+
+            target="jdk/$ver/macos/$filename"
+            if [[ ! -f "$target" ]]; then
+              echo "Downloading macOS x64: $filename ..."
+              curl -L --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
+                   -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+                   -o "$target" "$url" || echo "Warning: $filename may not exist"
+            else
+              echo "$filename already exists, skipping."
+            fi
+
+          done
+
+      - name: Commit JDKs into repo
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add jdk/
+          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (Windows EXE/MSI/ZIP + x86-64, Linux + x86-64, macOS)" || echo "No changes to commit"
+          git push
