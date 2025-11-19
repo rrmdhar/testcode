@@ -1,12 +1,12 @@
-name: Download and Commit Oracle JDKs (Dynamic Versions)
+name: Download and Commit Oracle JDKs (Dynamic, No Hardcoding)
 
 on:
   workflow_dispatch:
     inputs:
       versions:
-        description: "Comma-separated exact Oracle JDK version strings (e.g. 8u411-b09,11.0.24+8,17.0.12+7,21.0.7+7)"
+        description: "Comma-separated Oracle JDK short versions (e.g. 8u411,11.0.24,17.0.12,21.0.7)"
         required: true
-        default: "8u411-b09,11.0.24+8,17.0.12+7,21.0.7+7"
+        default: "8u411,11.0.24,17.0.12,21.0.7"
 
 jobs:
   download-and-commit:
@@ -27,46 +27,45 @@ jobs:
           versions=$(echo "${{ github.event.inputs.versions }}" | tr ',' ' ')
           echo "versions=$versions" >> $GITHUB_OUTPUT
 
-      - name: Download Oracle JDKs for all OS
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: Download Oracle JDKs dynamically
         run: |
           for ver in ${{ steps.parse.outputs.versions }}; do
-            echo "Processing Oracle JDK $ver ..."
+            echo "Processing JDK version $ver ..."
 
-            # Determine major version for folder structure
+            # Determine major version (8,11,17,21)
             if [[ "$ver" == 8* ]]; then
               major=8
-            elif [[ "$ver" == 11* ]]; then
-              major=11
-            elif [[ "$ver" == 17* ]]; then
-              major=17
-            elif [[ "$ver" == 21* ]]; then
-              major=21
             else
-              echo "Unsupported major JDK version in $ver"
+              major=${ver%%.*}
+            fi
+
+            echo "Fetching metadata for JDK $ver ..."
+            # Oracle provides JSON metadata URL
+            META_URL="https://www.oracle.com/.rest/api/v1/middleware/downloads/jdk/${major}-latest.json"
+
+            echo "Fetching metadata from $META_URL ..."
+            meta=$(curl -s $META_URL)
+
+            # Search for matching version in metadata
+            # Look for version field containing the short version
+            WIN_URL=$(echo "$meta" | jq -r --arg ver "$ver" '.downloads[] | select(.version|test($ver)) | .files[] | select(.platform=="windows-x64" and .type=="zip") | .url')
+            LINUX_URL=$(echo "$meta" | jq -r --arg ver "$ver" '.downloads[] | select(.version|test($ver)) | .files[] | select(.platform=="linux-x64" and .type=="tar.gz") | .url')
+            MAC_URL=$(echo "$meta" | jq -r --arg ver "$ver" '.downloads[] | select(.version|test($ver)) | .files[] | select(.platform=="macos-x64" and .type=="dmg") | .url')
+
+            if [[ -z "$WIN_URL" ]] || [[ -z "$LINUX_URL" ]] || [[ -z "$MAC_URL" ]]; then
+              echo "ERROR: Could not find download URLs for $ver"
               exit 1
             fi
 
-            # Construct dynamic download URLs
-            WIN_URL="https://download.oracle.com/otn-pub/java/jdk/${ver}/jdk-${ver}_windows-x64_bin.zip"
-            LINUX_URL="https://download.oracle.com/otn-pub/java/jdk/${ver}/jdk-${ver}_linux-x64_bin.tar.gz"
-            MAC_URL="https://download.oracle.com/otn-pub/java/jdk/${ver}/jdk-${ver}_macos-x64_bin.dmg"
+            echo "Downloading JDK $ver ..."
+            mkdir -p "jdk/$ver/windows" "jdk/$ver/linux" "jdk/$ver/macos"
 
-            echo "Downloading $ver for Windows, Linux, macOS..."
-
-            mkdir -p "jdk/$major/windows" "jdk/$major/linux" "jdk/$major/macos"
-
-            curl -L -b "oraclelicense=accept-securebackup-cookie" \
-                 -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                 -o "jdk/$major/windows/jdk-${ver}_windows-x64_bin.zip" "$WIN_URL"
-
-            curl -L -b "oraclelicense=accept-securebackup-cookie" \
-                 -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                 -o "jdk/$major/linux/jdk-${ver}_linux-x64_bin.tar.gz" "$LINUX_URL"
-
-            curl -L -b "oraclelicense=accept-securebackup-cookie" \
-                 -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                 -o "jdk/$major/macos/jdk-${ver}_macos-x64_bin.dmg" "$MAC_URL"
-
+            curl -L -b "oraclelicense=accept-securebackup-cookie" -o "jdk/$ver/windows/$(basename $WIN_URL)" "$WIN_URL"
+            curl -L -b "oraclelicense=accept-securebackup-cookie" -o "jdk/$ver/linux/$(basename $LINUX_URL)" "$LINUX_URL"
+            curl -L -b "oraclelicense=accept-securebackup-cookie" -o "jdk/$ver/macos/$(basename $MAC_URL)" "$MAC_URL"
           done
 
       - name: Commit JDKs into repo
@@ -74,5 +73,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add jdk/
-          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (Win/Linux/macOS)"
+          git commit -m "Add Oracle JDK versions dynamically: ${{ github.event.inputs.versions }}"
           git push
