@@ -21,55 +21,80 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Determine file extension
-        id: filetype
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "EXT=zip" >> $GITHUB_ENV
-          else
-            echo "EXT=tar.gz" >> $GITHUB_ENV
-          fi
-
       - name: Set platform variables
         id: vars
+        shell: bash
         run: |
-          # Map GitHub OS → Oracle OS name
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            echo "OS_NAME=linux" >> $GITHUB_ENV
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            echo "OS_NAME=macos" >> $GITHUB_ENV
+          # Set OS_NAME for Oracle JDK URLs
+          case "${{ runner.os }}" in
+            Linux) OS_NAME="linux";;
+            macOS) OS_NAME="macos";;
+            Windows) OS_NAME="windows";;
+            *) echo "Unsupported OS"; exit 1;;
+          esac
+          echo "OS_NAME=$OS_NAME" >> $GITHUB_ENV
+
+          # Set extension for download
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            EXT="zip"
           else
-            echo "OS_NAME=windows" >> $GITHUB_ENV
+            EXT="tar.gz"
           fi
+          echo "EXT=$EXT" >> $GITHUB_ENV
 
           echo "ARCH=${{ matrix.arch }}" >> $GITHUB_ENV
           echo "RELEASE=${{ matrix.java-version }}" >> $GITHUB_ENV
-          echo "BASE_URL=https://download.oracle.com/java/${{ matrix.java-version }}/latest" >> $GITHUB_ENV
 
       - name: Build download URL
         id: buildurl
+        shell: bash
         run: |
-          DOWNLOAD_URL="${BASE_URL}/jdk-${RELEASE}_${OS_NAME}-${ARCH}_bin.${EXT}"
-          echo "DOWNLOAD_URL=$DOWNLOAD_URL" >> $GITHUB_ENV
+          # Oracle uses 'x64' not 'amd64' in URL, and special pattern for macos aarch64
+          OS_NAME="${OS_NAME}"
+          ARCH="${ARCH}"
+          RELEASE="${RELEASE}"
+          EXT="${EXT}"
+
+          # Correction for Oracle's naming convention
+          # macos aarch64 is "macos-aarch64"
+          # macos x64 is "macos-x64"
+          # linux x64 is "linux-x64" etc.
+          # windows x64 is "windows-x64"
+          if [[ "$ARCH" == "aarch64" ]]; then
+            PLATFORM_STR="${OS_NAME}-aarch64"
+          else
+            PLATFORM_STR="${OS_NAME}-x64"
+          fi
+
+          # Compose the Oracle download URL
+          BASE_URL="https://download.oracle.com/java/${RELEASE}/latest"
+          FILENAME="jdk-${RELEASE}_${PLATFORM_STR}_bin.${EXT}"
+          DOWNLOAD_URL="${BASE_URL}/${FILENAME}"
+
+          echo "DOWNLOAD_URL=${DOWNLOAD_URL}" >> $GITHUB_ENV
+          echo "FILENAME=${FILENAME}" >> $GITHUB_ENV
           echo "Download URL: $DOWNLOAD_URL"
 
       - name: Download JDK ${{ matrix.java-version }}
+        shell: bash
         run: |
-          echo "Downloading Oracle JDK..."
-          curl --fail --location --retry 5 --output jdk-${RELEASE}.${EXT} "$DOWNLOAD_URL"
-          echo "Downloaded jdk-${RELEASE}.${EXT}"
+          echo "Downloading Oracle JDK from $DOWNLOAD_URL ..."
+          curl --fail --location --retry 5 --output "${FILENAME}" "${DOWNLOAD_URL}"
+          echo "Downloaded ${FILENAME}"
 
       - name: Extract archive
+        shell: bash
         run: |
           echo "Extracting..."
           if [[ "$EXT" == "tar.gz" ]]; then
-            tar -xzf jdk-${RELEASE}.${EXT}
+            tar -xzf "${FILENAME}"
           else
-            unzip -q jdk-${RELEASE}.${EXT}
+            unzip -q "${FILENAME}"
           fi
           echo "Extraction complete"
 
       - name: List extracted files
+        shell: bash
         run: |
           echo "Extracted directory contents:"
           ls -R .
