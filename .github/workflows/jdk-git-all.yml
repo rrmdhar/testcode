@@ -1,4 +1,4 @@
-name: Download and Commit Oracle JDKs (x64 / x86-64)
+name: Download and Commit Oracle JDKs (Separate x64 and x86-64)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       versions:
         description: "Comma-separated Oracle JDK versions (e.g., 8u411,11.0.24,17.0.12,21.0.7,25.0.1)"
         required: true
-        default: "8u411,11.0.24,17.0.12,21.0.7,25.0.1"
+        default: "8u471,11.0.29,17.0.17,21.0.9,25.0.1"
 
 jobs:
   download-and-commit:
@@ -26,7 +26,7 @@ jobs:
           versions=$(echo "${{ github.event.inputs.versions }}" | tr ',' ' ')
           echo "versions=$versions" >> $GITHUB_OUTPUT
 
-      - name: Download Oracle JDK files (x64 / x86-64)
+      - name: Download Oracle JDK files (arch-separated)
         run: |
           for ver in ${{ steps.parse.outputs.versions }}; do
             echo "Processing Oracle JDK $ver ..."
@@ -36,27 +36,38 @@ jobs:
             echo "Fetching file list from $base_url ..."
             html=$(curl -s -b "oraclelicense=accept-securebackup-cookie" -H "Cookie: oraclelicense=accept-securebackup-cookie" "$base_url")
 
-            # Extract all files containing x64 or x86-64
-            files=$(echo "$html" | grep -Eo 'href="jdk-[^"]*(x64|x86-64)[^"]+\.(zip|exe|msi|tar\.gz|dmg)"' | sed 's/href="//' | sed 's/"//')
+            # Separate lists for architectures
+            x64_files=$(echo "$html" | grep -Eo 'href="jdk-[^"]*x64[^"]+\.(zip|exe|msi|tar\.gz|dmg)"' | sed 's/href="//' | sed 's/"//')
+            x86_64_files=$(echo "$html" | grep -Eo 'href="jdk-[^"]*x86-64[^"]+\.(zip|exe|msi|tar\.gz|dmg)"' | sed 's/href="//' | sed 's/"//')
 
-            for file in $files; do
-              # Detect OS from filename
-              if [[ $file == *windows* ]]; then
-                os="windows"
-              elif [[ $file == *linux* ]]; then
-                os="linux"
-              elif [[ $file == *macos* ]]; then
-                os="macos"
-              else
-                os="other"
-              fi
+            # Function to download files into folder
+            download_files() {
+              arch=$1
+              files_list=$2
+              for file in $files_list; do
+                # Detect OS
+                if [[ $file == *windows* ]]; then
+                  os="windows"
+                elif [[ $file == *linux* ]]; then
+                  os="linux"
+                elif [[ $file == *macos* ]]; then
+                  os="macos"
+                else
+                  os="other"
+                fi
 
-              echo "Downloading $file ..."
-              mkdir -p "jdk/$ver/$os"
-              curl -L -b "oraclelicense=accept-securebackup-cookie" \
-                   -H "Cookie: oraclelicense=accept-securebackup-cookie" \
-                   -o "jdk/$ver/$os/$file" "$base_url/$file"
-            done
+                mkdir -p "jdk/$ver/$arch/$os"
+                echo "Downloading $file for $arch/$os ..."
+                curl -L -b "oraclelicense=accept-securebackup-cookie" \
+                     -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+                     -o "jdk/$ver/$arch/$os/$file" "$base_url/$file"
+              done
+            }
+
+            # Download x64 and x86-64 files separately
+            download_files "x64" "$x64_files"
+            download_files "x86-64" "$x86_64_files"
+
           done
 
       - name: Commit JDKs into repo
@@ -64,5 +75,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add jdk/
-          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (x64 / x86-64, all OS files)"
+          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (arch-separated x64 and x86-64)"
           git push
