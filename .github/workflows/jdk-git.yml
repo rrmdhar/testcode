@@ -1,0 +1,29 @@
+name: Download Oracle JDK 21.0.7 (Windows x64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-jdk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download Oracle JDK 21.0.7 for Windows x64
+        run: |
+          JDK_URL="https://download.oracle.com/otn-pub/java/jdk/21.0.7+7/2e923413a8bb42a4b77fa1f21dcb40f2/jdk-21.0.7_windows-x64_bin.zip"
+
+          echo "Downloading Oracle JDK..."
+          curl -L -b "oraclelicense=accept-securebackup-cookie" \
+               -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+               -o jdk-21.0.7-windows-x64.zip \
+               "$JDK_URL"
+
+      - name: Upload ZIP as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdk-21.0.7-windows-x64
+          path: jdk-21.0.7-windows-x64.zip
+          retention-days: 30
