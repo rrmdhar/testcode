@@ -1,0 +1,75 @@
+name: Download Oracle JDKs (Multi-OS / Multi-Arch)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-jdks:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        java-version: [11, 17, 21]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        arch: [x64, aarch64]
+        exclude:
+          # Windows only has x64 builds
+          - os: windows-latest
+            arch: aarch64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine file extension
+        id: filetype
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "EXT=zip" >> $GITHUB_ENV
+          else
+            echo "EXT=tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Set platform variables
+        id: vars
+        run: |
+          # Map GitHub OS → Oracle OS name
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            echo "OS_NAME=linux" >> $GITHUB_ENV
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            echo "OS_NAME=macos" >> $GITHUB_ENV
+          else
+            echo "OS_NAME=windows" >> $GITHUB_ENV
+          fi
+
+          echo "ARCH=${{ matrix.arch }}" >> $GITHUB_ENV
+          echo "RELEASE=${{ matrix.java-version }}" >> $GITHUB_ENV
+          echo "BASE_URL=https://download.oracle.com/java/${{ matrix.java-version }}/latest" >> $GITHUB_ENV
+
+      - name: Build download URL
+        id: buildurl
+        run: |
+          DOWNLOAD_URL="${BASE_URL}/jdk-${RELEASE}_${OS_NAME}-${ARCH}_bin.${EXT}"
+          echo "DOWNLOAD_URL=$DOWNLOAD_URL" >> $GITHUB_ENV
+          echo "Download URL: $DOWNLOAD_URL"
+
+      - name: Download JDK ${{ matrix.java-version }}
+        run: |
+          echo "Downloading Oracle JDK..."
+          curl --fail --location --retry 5 --output jdk-${RELEASE}.${EXT} "$DOWNLOAD_URL"
+          echo "Downloaded jdk-${RELEASE}.${EXT}"
+
+      - name: Extract archive
+        run: |
+          echo "Extracting..."
+          if [[ "$EXT" == "tar.gz" ]]; then
+            tar -xzf jdk-${RELEASE}.${EXT}
+          else
+            unzip -q jdk-${RELEASE}.${EXT}
+          fi
+          echo "Extraction complete"
+
+      - name: List extracted files
+        run: |
+          echo "Extracted directory contents:"
+          ls -R .
