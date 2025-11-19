@@ -1,10 +1,10 @@
-name: Download and Commit Oracle JDKs (/otn-pub/java/jdk)
+name: Download and Commit Oracle JDKs (Windows EXE/MSI + ZIP, Linux, macOS)
 
 on:
   workflow_dispatch:
     inputs:
       versions:
-        description: "Comma-separated Oracle JDK versions to download (e.g., 8u411,11.0.24,17.0.12,21.0.7,25.0.1)"
+        description: "Comma-separated Oracle JDK versions (e.g., 8u411,11.0.24,17.0.12,21.0.7,25.0.1)"
         required: true
         default: "8u411,11.0.24,17.0.12,21.0.7,25.0.1"
 
@@ -26,34 +26,52 @@ jobs:
           versions=$(echo "${{ github.event.inputs.versions }}" | tr ',' ' ')
           echo "versions=$versions" >> $GITHUB_OUTPUT
 
-      - name: Download Oracle JDKs dynamically
+      - name: Download Oracle JDKs (Windows EXE/MSI/ZIP, Linux, macOS)
         run: |
           for ver in ${{ steps.parse.outputs.versions }}; do
             echo "Processing Oracle JDK $ver ..."
 
             mkdir -p jdk/$ver/windows jdk/$ver/linux jdk/$ver/macos
 
-            # Determine OS extensions
-            declare -A os_map=( ["windows"]="zip" ["linux"]="tar.gz" ["macos"]="dmg" )
+            # OS map (Linux and macOS keep original extensions)
+            declare -A os_map=( ["linux"]="tar.gz" ["macos"]="dmg" )
 
-            # Construct URL using /otn-pub/java/jdk structure
+            # Windows extensions (multiple: zip, exe, msi)
+            windows_exts=("zip" "exe" "msi")
+
+            # Windows downloads
+            for ext in "${windows_exts[@]}"; do
+              # Construct URL
+              if [[ "$ver" == 8u* ]]; then
+                build="b09"
+                filename="jdk-${ver}-windows-x64_bin.${ext}"
+                url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-windows-x64_bin.${ext}"
+              else
+                build="latest"
+                filename="jdk-${ver}-windows-x64_bin.${ext}"
+                url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}-windows-x64_bin.${ext}"
+              fi
+
+              echo "Downloading Windows $ext: $filename from $url ..."
+              curl -L -b "oraclelicense=accept-securebackup-cookie" \
+                   -H "Cookie: oraclelicense=accept-securebackup-cookie" \
+                   -o "jdk/$ver/windows/$filename" "$url"
+            done
+
+            # Linux and macOS downloads
             for os in "${!os_map[@]}"; do
               ext="${os_map[$os]}"
-
-              # For JDK 8, use 'u' and 'b' notation
               if [[ "$ver" == 8u* ]]; then
-                update=${ver#8u}          # e.g., 8u411 -> 411
-                build="b09"               # Default build number; can be adjusted per version
-                filename="jdk-${ver}-windows-x64_bin.${ext}"
+                build="b09"
+                filename="jdk-${ver}-${os}-x64_bin.${ext}"
                 url="https://download.oracle.com/otn-pub/java/jdk/${ver}-${build}/jdk-${ver}-${os}-x64_bin.${ext}"
               else
-                # JDK 11+ format: version+build
-                build="latest"   # 'latest' placeholder; adjust if exact build known
+                build="latest"
                 filename="jdk-${ver}_${os}-x64_bin.${ext}"
                 url="https://download.oracle.com/otn-pub/java/jdk/${ver}+${build}/jdk-${ver}_${os}-x64_bin.${ext}"
               fi
 
-              echo "Downloading $filename from $url ..."
+              echo "Downloading $os: $filename from $url ..."
               curl -L -b "oraclelicense=accept-securebackup-cookie" \
                    -H "Cookie: oraclelicense=accept-securebackup-cookie" \
                    -o "jdk/$ver/$os/$filename" "$url"
@@ -65,5 +83,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add jdk/
-          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (Windows/Linux/macOS)"
+          git commit -m "Add Oracle JDK versions: ${{ github.event.inputs.versions }} (Windows EXE/MSI/ZIP, Linux, macOS)"
           git push
