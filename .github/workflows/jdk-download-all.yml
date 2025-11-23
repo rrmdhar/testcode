@@ -59,6 +59,7 @@ jobs:
                   echo "Checking URL for Windows $arch $ext: $filename ..."
                   http_status=$(curl -s -o /dev/null -w "%{http_code}" -L --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
                        -H "Cookie: oraclelicense=accept-securebackup-cookie" "$url")
+                  echo "HTTP status for $filename: $http_status"
                   if [[ "$http_status" == "200" ]]; then
                     echo "Downloading Windows $arch $ext: $filename ..."
                     curl -sSL --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
@@ -89,6 +90,7 @@ jobs:
                 echo "Checking URL for Linux $arch: $filename ..."
                 http_status=$(curl -s -o /dev/null -w "%{http_code}" -L --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
                      -H "Cookie: oraclelicense=accept-securebackup-cookie" "$url")
+                echo "HTTP status for $filename: $http_status"
                 if [[ "$http_status" == "200" ]]; then
                   echo "Downloading Linux $arch: $filename ..."
                   curl -sSL --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
@@ -117,6 +119,7 @@ jobs:
               echo "Checking URL for macOS x64: $filename ..."
               http_status=$(curl -s -o /dev/null -w "%{http_code}" -L --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
                    -H "Cookie: oraclelicense=accept-securebackup-cookie" "$url")
+              echo "HTTP status for $filename: $http_status"
               if [[ "$http_status" == "200" ]]; then
                 echo "Downloading macOS x64: $filename ..."
                 curl -sSL --retry 3 -b "oraclelicense=accept-securebackup-cookie" \
